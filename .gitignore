@@ -1,0 +1,23 @@
+# Ignore build directories
+**/build/
+**/out/
+
+# Ignore IDE settings
+.idea/
+*.iml
+
+# Ignore gradle files
+.gradle/
+**/local.properties
+
+# Ignore log and temp files
+*.log
+*.tmp
+
+# Ignore dependency caches
+**/.gradle/
+**/.idea/
+
+# Ignore generated files
+**/captures/
+**/gen/
