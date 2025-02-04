@@ -7,6 +7,8 @@ import java.io.ByteArrayInputStream
 import java.io.DataInputStream
 import java.io.EOFException
 import java.net.ServerSocket
+import java.net.SocketException
+import java.net.StandardSocketOptions
 import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
 import kotlin.collections.set
@@ -24,6 +26,11 @@ class Server {
             while (isRunning) {
                 try {
                     val socket = serverSocket?.accept() ?: continue
+                    socket.keepAlive = true
+                    socket.soTimeout = 5000
+                    socket.setOption(StandardSocketOptions.TCP_NODELAY, true) // Reduce delays
+                    socket.setOption(StandardSocketOptions.SO_KEEPALIVE, true) // Keep connection alive
+                    socket.setOption(StandardSocketOptions.SO_REUSEADDR, true) // Reuse socket if clos
                     val student = Student(
                         id = "Student${students.size + 1}",
                         socket = socket
@@ -31,7 +38,8 @@ class Server {
                     students[student.id] = student
                     handleStudent(student)
                     Thread.sleep(SCREEN_UPDATE_INTERVAL)
-                } catch (e: Exception) {
+                }
+                catch (e: Exception) {
                     if (isRunning) e.printStackTrace()
                 }
             }
@@ -69,6 +77,7 @@ class Server {
                         }
                     }
                 } catch (e: Exception) {
+                    student.socket.close()
                     students.remove(student.id)
                     break
                 }
