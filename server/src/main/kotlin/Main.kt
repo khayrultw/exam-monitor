@@ -9,8 +9,6 @@ fun main() = application {
     val windowState = rememberWindowState()
     val server = Server()
 
-    server.start()
-
     Window(
         onCloseRequest = {
             server.stop()
