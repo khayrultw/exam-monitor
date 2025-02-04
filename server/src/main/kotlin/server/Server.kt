@@ -10,9 +10,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
 import java.io.File
+import java.io.IOException
 import java.io.OutputStream
 import java.net.ServerSocket
 import java.net.StandardSocketOptions
@@ -54,7 +56,7 @@ class Server {
     private fun handleStudent(student: Student) {
         scope.launch {
             val input = DataInputStream(student.socket.getInputStream())
-            var stream: OutputStream? = null
+            //var stream: OutputStream? = null
             while (isRunning.value) {
                 try {
                     val type = input.readInt()
@@ -64,7 +66,7 @@ class Server {
                             val bytes = ByteArray(size)
                             input.readFully(bytes)
                             val name = String(bytes, Charsets.UTF_8)
-                            stream = createVideoStream(name)
+                            // stream = createVideoStream(name)
                             student.name.value = name
                         }
 
@@ -81,15 +83,7 @@ class Server {
                             input.readFully(bytes)
                             val image = ImageIO.read(ByteArrayInputStream(bytes))
                             student.lastImage.value = image
-                            if(stream != null) {
-                                scope.launch {
-                                    try {
-                                        ImageIO.write(image, "jpeg", stream)
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                    }
-                                }
-                            }
+                            saveImage(student.name.value, image)
                         }
                     }
                 } catch (e: Exception) {
@@ -97,8 +91,23 @@ class Server {
                 }
             }
             student.socket.close()
-            stream?.close()
             students.remove(student)
+        }
+    }
+
+    private fun saveImage(name: String, image: BufferedImage) {
+        val sanitizedName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+
+        val folder = File("student_images/$sanitizedName")
+        if (!folder.exists()) folder.mkdirs()
+
+        val timestamp = System.currentTimeMillis()
+        val file = File(folder, "$timestamp.png")
+
+        try {
+            ImageIO.write(image, "png", file)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 

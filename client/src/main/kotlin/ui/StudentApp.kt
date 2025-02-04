@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 // Constants
 const val SERVICE_PORT = 12345
-const val SCREEN_UPDATE_INTERVAL = 200L // 1 seconds
+const val SCREEN_UPDATE_INTERVAL = 1000L // 1 seconds
 
 // Student UI
 @Composable
