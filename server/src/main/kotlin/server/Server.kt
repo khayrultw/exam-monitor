@@ -1,56 +1,61 @@
 package server
 
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import core.Constants
 import core.Constants.SCREEN_UPDATE_INTERVAL
 import data.Student
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
-import java.io.EOFException
+import java.io.File
+import java.io.OutputStream
 import java.net.ServerSocket
-import java.net.SocketException
 import java.net.StandardSocketOptions
-import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
-import kotlin.collections.set
 
 class Server {
-    private val students = ConcurrentHashMap<String, Student>()
+    val students: SnapshotStateList<Student> = mutableStateListOf()
     private var serverSocket: ServerSocket? = null
-    private var isRunning = true
+    val isRunning = mutableStateOf(false)
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     fun start() {
         serverSocket = ServerSocket(Constants.SERVICE_PORT)
-        println("Teacher server started on port ${Constants.SERVICE_PORT}")
-
-        Thread {
-            while (isRunning) {
+        isRunning.value = true
+        scope.launch {
+            while (isRunning.value) {
                 try {
                     val socket = serverSocket?.accept() ?: continue
                     socket.keepAlive = true
                     socket.soTimeout = 5000
-                    socket.setOption(StandardSocketOptions.TCP_NODELAY, true) // Reduce delays
-                    socket.setOption(StandardSocketOptions.SO_KEEPALIVE, true) // Keep connection alive
-                    socket.setOption(StandardSocketOptions.SO_REUSEADDR, true) // Reuse socket if clos
+                    socket.setOption(StandardSocketOptions.TCP_NODELAY, true)
+                    socket.setOption(StandardSocketOptions.SO_KEEPALIVE, true)
+                    socket.setOption(StandardSocketOptions.SO_REUSEADDR, true)
                     val student = Student(
                         id = "Student${students.size + 1}",
                         socket = socket
                     )
-                    students[student.id] = student
+                    students.add(student)
                     handleStudent(student)
-                    Thread.sleep(SCREEN_UPDATE_INTERVAL)
+                    delay(SCREEN_UPDATE_INTERVAL)
                 }
                 catch (e: Exception) {
-                    if (isRunning) e.printStackTrace()
+                    if (isRunning.value) e.printStackTrace()
                 }
             }
-        }.start()
+        }
     }
 
     private fun handleStudent(student: Student) {
-        Thread {
+        scope.launch {
             val input = DataInputStream(student.socket.getInputStream())
-
-            while (isRunning) {
+            var stream: OutputStream? = null
+            while (isRunning.value) {
                 try {
                     val type = input.readInt()
                     when(type) {
@@ -59,6 +64,7 @@ class Server {
                             val bytes = ByteArray(size)
                             input.readFully(bytes)
                             val name = String(bytes, Charsets.UTF_8)
+                            stream = createVideoStream(name)
                             student.name.value = name
                         }
 
@@ -73,24 +79,53 @@ class Server {
                             val size = input.readInt()
                             val bytes = ByteArray(size)
                             input.readFully(bytes)
-                            student.lastImage.value = ImageIO.read(ByteArrayInputStream(bytes))
+                            val image = ImageIO.read(ByteArrayInputStream(bytes))
+                            student.lastImage.value = image
+                            if(stream != null) {
+                                scope.launch {
+                                    try {
+                                        ImageIO.write(image, "jpeg", stream)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                            }
                         }
                     }
                 } catch (e: Exception) {
-                    student.socket.close()
-                    students.remove(student.id)
                     break
                 }
             }
-        }.start()
+            student.socket.close()
+            stream?.close()
+            students.remove(student)
+        }
+    }
+
+    private fun createVideoStream(name: String): OutputStream {
+        val sanitizedName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+
+        val folder = File("student_images/$sanitizedName")
+        if (!folder.exists()) folder.mkdirs()
+
+        val outputFile = File(folder, "${System.currentTimeMillis()}.mp4").absolutePath
+
+        val process = ProcessBuilder(
+            "ffmpeg",
+            "-y", "-f", "image2pipe", "-vcodec", "mjpeg",
+            "-r", "4", "-i", "-",
+            "-vcodec", "libx264", "-pix_fmt", "yuv420p",
+            "-preset", "veryfast", "-b:v", "500k",
+            outputFile
+        ).redirectErrorStream(true).start()
+
+        return process.outputStream
     }
 
 
-    fun getStudentScreens(): List<Student> = students.values.toList()
-
     fun stop() {
-        isRunning = false
-        students.forEach { it.value.socket.close() }
+        isRunning.value = false
+        students.forEach { it.socket.close() }
         serverSocket?.close()
     }
 }

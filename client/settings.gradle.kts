@@ -13,4 +13,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "exam-monitor"
+rootProject.name = "exm-client"
