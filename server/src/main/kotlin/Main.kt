@@ -11,8 +11,9 @@ fun main() = application {
 
     Window(
         onCloseRequest = {
-            server.stop()
-            exitApplication()
+            if(!server.isRunning.value) {
+                exitApplication()
+            }
         },
         title = "Exam Monitor - Teacher",
         state = windowState

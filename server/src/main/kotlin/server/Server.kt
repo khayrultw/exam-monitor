@@ -16,6 +16,9 @@ import java.io.DataInputStream
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.StandardSocketOptions
 import javax.imageio.ImageIO
@@ -26,8 +29,9 @@ class Server {
     val isRunning = mutableStateOf(false)
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    fun start() {
-        serverSocket = ServerSocket(Constants.SERVICE_PORT)
+    fun start(port: Int) {
+        broadcastHost(port)
+        serverSocket = ServerSocket(port)
         isRunning.value = true
         scope.launch {
             while (isRunning.value) {
@@ -49,6 +53,26 @@ class Server {
                 catch (e: Exception) {
                     if (isRunning.value) e.printStackTrace()
                 }
+            }
+        }
+    }
+
+    private fun broadcastHost(port: Int) {
+        scope.launch {
+            val socket = DatagramSocket()
+            val address = InetAddress.getByName("255.255.255.255")  // Broadcast address
+            val message = "server"
+            while (isRunning.value) {
+                val packet = DatagramPacket(
+                    message.toByteArray(),
+                    message.length,
+                    address,
+                    port
+                )
+                try {
+                    socket.send(packet)
+                } catch (_: Exception) {}
+                Thread.sleep(2000)  // Send every 2 seconds
             }
         }
     }

@@ -12,6 +12,16 @@ import server.Server
 @Composable
 fun TeacherApp(server: Server) {
     val students = server.students
+    var room by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    fun onClickStart(room: String) {
+        try {
+            server.start(room.trim().toInt())
+        } catch (e: Exception) {
+            errorMessage = "Failed to connect: ${e.message}"
+        }
+    }
 
     GlobalAlert()
     Column(
@@ -42,8 +52,33 @@ fun TeacherApp(server: Server) {
             }
             StudentsDisplay(students)
         } else {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Button(onClick = { server.start() }) {
+            Column(
+                Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (errorMessage != null) {
+                    Card(
+                        backgroundColor = MaterialTheme.colors.error.copy(alpha = 0.1f),
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            errorMessage!!,
+                            color = MaterialTheme.colors.error,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+                TextField(
+                    value = room,
+                    onValueChange = { room = it },
+                    label = { Text("Enter room number") },
+                    modifier = Modifier.widthIn(200.dp, 700.dp).fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { onClickStart(room) }) {
                     Text("Start")
                 }
             }
