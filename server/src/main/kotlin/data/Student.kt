@@ -7,7 +7,7 @@ import java.net.Socket
 
 data class Student(
     val id: String,
-    val name: MutableState<String> = mutableStateOf("Name"),
+    val name: MutableState<String> = mutableStateOf(""),
     val message: MutableState<String> = mutableStateOf(""),
     val socket: Socket,
     val lastImage: MutableState<BufferedImage?> = mutableStateOf(null)

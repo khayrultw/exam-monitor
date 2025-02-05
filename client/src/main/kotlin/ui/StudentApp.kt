@@ -1,5 +1,6 @@
 package ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
@@ -18,20 +19,20 @@ const val SCREEN_UPDATE_INTERVAL = 1000L // 1 seconds
 @Composable
 fun StudentApp() {
     val isRunning = StudentClient.isRunning.value
+    val isConnected = StudentClient.isConnected.value
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var serverIp by remember { mutableStateOf("127.0.0.1") }
-    var studentName by remember { mutableStateOf("Student Name") }
+    var studentName by remember { mutableStateOf("") }
+    var roomNumber by remember { mutableStateOf("") }
 
 
     fun onClickShare() {
         try {
-            StudentClient.start(serverIp, studentName)
+            StudentClient.start(studentName, roomNumber.trim().toInt())
             errorMessage = null
         } catch (e: Exception) {
             errorMessage = "Failed to connect: ${e.message}"
         }
     }
-
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -59,16 +60,16 @@ fun StudentApp() {
                     value = studentName,
                     onValueChange = { studentName = it },
                     label = { Text("Enter your name") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.widthIn(200.dp, 700.dp).fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 TextField(
-                    value = serverIp,
-                    onValueChange = { serverIp = it },
-                    label = { Text("Enter IP") },
-                    modifier = Modifier.fillMaxWidth()
+                    value = roomNumber,
+                    onValueChange = { roomNumber = it },
+                    label = { Text("Enter room number") },
+                    modifier = Modifier.widthIn(200.dp, 700.dp).fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -81,23 +82,47 @@ fun StudentApp() {
                 }
             }
         } else {
-            Button(
-                onClick = {
-                    StudentClient.stop()
-                },
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = MaterialTheme.colors.error
-                ),
-                modifier = Modifier.width(200.dp)
-            ) {
-                Text("Stop Sharing")
-            }
+            if(!isConnected) {
+                Box(
+                    modifier = Modifier.background(MaterialTheme.colors.error.copy(alpha = 0.1f)),
+                ) {
+                    Text(
+                        "Looking for the host...",
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        StudentClient.stop()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = MaterialTheme.colors.error
+                    ),
+                    modifier = Modifier.width(200.dp)
+                ) {
+                    Text("Stop")
+                }
+                Spacer(Modifier.height(16.dp))
+            } else {
+                Button(
+                    onClick = {
+                        StudentClient.stop()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = MaterialTheme.colors.error
+                    ),
+                    modifier = Modifier.width(200.dp)
+                ) {
+                    Text("Stop Sharing")
+                }
 
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "Screen is being shared",
-                color = MaterialTheme.colors.primary
-            )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Screen is being shared",
+                    color = MaterialTheme.colors.primary
+                )
+            }
         }
     }
 }

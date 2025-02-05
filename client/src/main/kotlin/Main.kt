@@ -3,6 +3,8 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import client.StudentClient
+import ui.AlertManager
+import ui.GlobalAlert
 import ui.StudentApp
 
 // Main Application
@@ -12,8 +14,10 @@ fun main() = application {
     Window(
         onCloseRequest = {
             if(StudentClient.isRunning.value) {
-                println("don't")
-                exitApplication()
+                AlertManager.showAlert(
+                    "You should not quit the app",
+                    "You cannot quit the app when the exam is on going"
+                )
             } else {
                 exitApplication()
             }
@@ -22,6 +26,7 @@ fun main() = application {
         state = windowState
     ) {
         MaterialTheme {
+            GlobalAlert()
             StudentApp()
         }
     }
