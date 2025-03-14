@@ -56,7 +56,6 @@ func (client *Client) Start(studentName string, port int, updateUI func()) {
 				println(err)
 				continue
 			}
-			println("Discovered server")
 			client.isConnected.Store(true)
 			updateUI()
 			retryDelay = 1 * time.Second
@@ -67,8 +66,6 @@ func (client *Client) Start(studentName string, port int, updateUI func()) {
 				println(err.Error())
 				continue
 			}
-
-			println("Connected to server")
 
 			client.SendStudentName(studentName)
 
@@ -84,12 +81,10 @@ func (client *Client) Start(studentName string, port int, updateUI func()) {
 			client.socket.Close()
 		}
 
-		println("Client stopped")
 	}()
 }
 
 func discoverServer(port int) (string, error) {
-	println("Discovering server")
 	address := net.UDPAddr{
 		IP:   net.IPv4(0, 0, 0, 0),
 		Port: port,

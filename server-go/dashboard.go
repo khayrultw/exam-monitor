@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"sync"
 
 	"gioui.org/layout"
@@ -26,7 +27,7 @@ type DashboardState struct {
 	mu       sync.Mutex
 }
 
-const col = 2
+const col = 3
 
 func NewDashboardState(stop func()) *DashboardState {
 	return &DashboardState{
@@ -88,7 +89,9 @@ func (ds *DashboardState) Layout(gtx layout.Context, th *material.Theme, list *w
 						return material.H5(th, fmt.Sprintf("Connected students %d", len(ds.Students))).Layout(gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return material.Button(th, ds.BtnStop, "Stop").Layout(gtx)
+						btn := material.Button(th, ds.BtnStop, "Stop")
+						btn.Background = color.NRGBA{R: 200, G: 50, B: 50, A: 255} // Set button background to a mixed red color
+						return btn.Layout(gtx)
 					}),
 				)
 			})
@@ -106,7 +109,7 @@ func (ds *DashboardState) CreateRow(gtx layout.Context, th *material.Theme, rowI
 	students := ds.getStudentsAsSlice()
 	start := rowIndex * col
 	end := min(start+col, len(students))
-	width := (gtx.Constraints.Max.X - 32) / col // Get equal width for each item
+	width := (gtx.Constraints.Max.X - 2*col*8) / col // Get equal width for each item
 
 	for i := start; i < end; i++ {
 		item := students[i]
