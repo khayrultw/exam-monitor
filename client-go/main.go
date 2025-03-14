@@ -47,7 +47,9 @@ func run(w *app.Window) error {
 	var ops op.Ops
 	th := material.NewTheme()
 	state := NewAppState()
-	dashboard := NewDashboardState()
+	dashboard := NewDashboardState(func() {
+		state.swtichScreen("join")
+	})
 
 	joinView := NewJoinView(func(name string, room int) {
 		state.swtichScreen("dashboard")

@@ -61,7 +61,6 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 		defer socket.Close()
 		header := make([]byte, 4)
 		for s.isRunning.Load() {
-			println("Reading header data")
 			_, err := socket.Read(header)
 
 			if err != nil {
@@ -88,14 +87,14 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 			default:
 				img, _, err := image.Decode(bytes.NewReader(data))
 				if err == nil {
-					student.Image = img
+					student.Image = img // Check if zero array can be formed
+
 				}
 			}
 
 			time.Sleep(time.Millisecond * 100)
 		}
 		s.RemoveStudent(student.Id)
-		println("Student disconnected")
 	}()
 }
 
@@ -121,7 +120,6 @@ func (s *Server) broadcastHost(port int) {
 }
 
 func (s *Server) Stop() {
-	println("Server stopping")
 	s.isRunning.Store(false)
 	if s.listener != nil {
 		s.listener.Close()
