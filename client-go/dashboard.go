@@ -34,7 +34,7 @@ func (d *DashboardState) Layout(gtx layout.Context, th *material.Theme) layout.D
 			return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(
 				gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return material.H5(th, "Connected").Layout(gtx)
+					return material.H5(th, "Screen Sharing Started").Layout(gtx)
 				}),
 			)
 		})

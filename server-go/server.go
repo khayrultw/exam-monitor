@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"image"
 	"io"
 	"net"
@@ -9,11 +11,21 @@ import (
 	"time"
 )
 
+const (
+	HEADER_SIZE = 8
+)
+
 type Server struct {
-	listener      *net.TCPListener
-	isRunning     atomic.Bool
-	AddStudent    func() *Student
-	RemoveStudent func(id int)
+	listener    *net.TCPListener
+	isRunning   atomic.Bool
+	studentUtil StudentUtil
+}
+
+type StudentUtil interface {
+	AddStudent(name string) int
+	RemoveStudent(id int)
+	UpdateImage(id int, img image.Image)
+	UpdateName(id int, name string)
 }
 
 func NewServer() *Server {
@@ -26,9 +38,11 @@ func NewServer() *Server {
 }
 
 func (s *Server) Start(port int) {
+	if s.studentUtil == nil {
+		return
+	}
 	s.isRunning.Store(true)
 	go s.broadcastHost(port)
-	println("Server started")
 	go func() {
 		listener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: port})
 		if err != nil {
@@ -38,7 +52,6 @@ func (s *Server) Start(port int) {
 		defer listener.Close()
 		s.listener = listener
 		for s.isRunning.Load() {
-			println("Waiting for connection", port)
 			conn, err := listener.AcceptTCP()
 			if err != nil {
 				continue
@@ -50,28 +63,36 @@ func (s *Server) Start(port int) {
 			go s.handleStudent(conn)
 		}
 
-		println("Server stopped")
 	}()
 }
 
 func (s *Server) handleStudent(socket *net.TCPConn) {
-	student := s.AddStudent()
+	id := s.studentUtil.AddStudent("Unknown")
 
 	go func() {
 		defer socket.Close()
-		header := make([]byte, 4)
+		header := make([]byte, HEADER_SIZE)
+		data := make([]byte, 0)
 		for s.isRunning.Load() {
-			_, err := socket.Read(header)
+			_, err := io.ReadFull(socket, header)
 
 			if err != nil {
-				s.RemoveStudent(student.Id)
+				s.studentUtil.RemoveStudent(id)
 				break
 			}
 
-			dataType, dataSize := unpackData(header)
-			data := make([]byte, dataSize)
+			dataType, dataSize, err := unpackHeader(header)
+
 			println("Reading data", dataSize)
-			_, err = io.ReadFull(socket, data)
+
+			if err != nil || dataSize <= 0 || dataSize > 5*1024*1024 {
+				continue
+			}
+
+			if len(data) < dataSize {
+				data = make([]byte, dataSize)
+			}
+			_, err = io.ReadFull(socket, data[:dataSize])
 
 			if err != nil {
 				continue
@@ -79,22 +100,20 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 
 			switch dataType {
 			case 0:
-				name := string(data)
-				student.Name = name
+				name := string(data[:dataSize])
+				s.studentUtil.UpdateName(id, name)
 			case 1:
-				msg := string(data)
+				msg := string(data[:dataSize])
 				println(msg)
 			default:
-				img, _, err := image.Decode(bytes.NewReader(data))
+				img, _, err := image.Decode(bytes.NewReader(data[:dataSize]))
 				if err == nil {
-					student.Image = img // Check if zero array can be formed
+					s.studentUtil.UpdateImage(id, img) // Check if zero array can be formed
 
 				}
 			}
-
-			time.Sleep(time.Millisecond * 100)
 		}
-		s.RemoveStudent(student.Id)
+		s.studentUtil.RemoveStudent(id)
 	}()
 }
 
@@ -126,13 +145,13 @@ func (s *Server) Stop() {
 	}
 }
 
-func unpackData(data []byte) (byte, int) {
-	if len(data) != 4 {
-		panic("Invalid data length")
+func unpackHeader(data []byte) (uint16, int, error) {
+	if len(data) < HEADER_SIZE || string(data[:2]) != "HE" {
+		return 0, 0, errors.New("invalid header")
 	}
 
-	status := data[0]
-	length := (int(data[1]) << 16) | (int(data[2]) << 8) | int(data[3])
+	status := uint16(binary.BigEndian.Uint16(data[2:4]))
+	length := int(binary.BigEndian.Uint32(data[4:8]))
 
-	return status, length
+	return status, length, nil
 }
