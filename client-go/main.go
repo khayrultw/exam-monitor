@@ -32,7 +32,7 @@ func (state *AppState) swtichScreen(screen string) {
 func main() {
 	go func() {
 		w := new(app.Window)
-		w.Option(app.Title("Hello gio"))
+		w.Option(app.Title("Exam Gaurd Client"))
 		w.Option(app.Size(unit.Dp(400), unit.Dp(600)))
 		if err := run(w); err != nil {
 			log.Fatal(err)

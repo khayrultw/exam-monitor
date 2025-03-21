@@ -22,7 +22,7 @@ func NewHomeState(start func(int)) *HomeState {
 		OnClick:    start,
 	}
 
-	home.RoomEditor.SetText("1234")
+	//home.RoomEditor.SetText("1234")
 	return &home
 }
 

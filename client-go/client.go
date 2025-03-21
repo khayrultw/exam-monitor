@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image/jpeg"
 	"net"
 	"sync/atomic"
@@ -16,6 +17,7 @@ const (
 	NAME            = 0
 	MESSAGE         = 1
 	PICTURE         = 2
+	HEADER_SIZE     = 8
 )
 
 const (
@@ -49,7 +51,7 @@ func (client *Client) Start(studentName string, port int, updateUI func()) {
 			client.isConnected.Store(false)
 			updateUI()
 			serverAddress, err := discoverServer(port)
-			println(serverAddress)
+			//println(serverAddress)
 			if err != nil {
 				time.Sleep(retryDelay)
 				retryDelay = min(retryDelay*2, 8*time.Second)
@@ -117,8 +119,9 @@ func (client *Client) captureScreen() ([]byte, error) {
 
 	var buf bytes.Buffer
 
-	resizedImg := resize.Resize(1080, 0, img, resize.NearestNeighbor)
-	options := jpeg.Options{Quality: 50} // Reduce quality to 40 for better performance
+	resizedImg := resize.Resize(720, 0, img, resize.NearestNeighbor)
+
+	options := jpeg.Options{Quality: 60}
 	err = jpeg.Encode(&buf, resizedImg, &options)
 	if err != nil {
 		return nil, err
@@ -129,25 +132,21 @@ func (client *Client) captureScreen() ([]byte, error) {
 
 func (client *Client) SendStudentName(name string) {
 	if client.socket != nil {
-		nameBytes := []byte(name)
-		client.sendData(packData(NAME, len(nameBytes)))
-		client.sendData(nameBytes)
+		client.sendData(NAME, []byte(name))
 	}
 }
 
 func (client *Client) SendScreenshot(screenshot []byte) {
 	if client.socket != nil {
-		client.sendData(packData(PICTURE, len(screenshot)))
-		client.sendData(screenshot)
-		println("Image size:", len(screenshot))
+		client.sendData(PICTURE, screenshot)
 	}
+
+	println("Screenshot sent", len(screenshot))
 }
 
 func (client *Client) SendMessage(msg string) {
 	if client.socket != nil {
-		msgBytes := []byte(msg)
-		client.sendData(packData(MESSAGE, len(msgBytes)))
-		client.sendData(msgBytes)
+		client.sendData(MESSAGE, []byte(msg))
 	}
 }
 
@@ -159,22 +158,25 @@ func (client *Client) Stop() {
 	}
 }
 
-func (client *Client) sendData(data []byte) {
+func (client *Client) sendData(dataType uint16, dataBytes []byte) {
+	data := make([]byte, HEADER_SIZE+len(dataBytes))
+	copy(data, client.packHeader(dataType, len(dataBytes)))
+	copy(data[HEADER_SIZE:], dataBytes)
 	_, err := client.socket.Write(data)
 
 	if err != nil {
 		println(err.Error())
 		client.isConnected.Store(false)
 	}
+
 }
 
-func packData(status byte, length int) []byte {
-	data := make([]byte, 4)
+func (client *Client) packHeader(status uint16, length int) []byte {
+	data := make([]byte, HEADER_SIZE)
 
-	data[0] = status
-	data[1] = byte((length >> 16) & 0xFF) // MSB
-	data[2] = byte((length >> 8) & 0xFF)  // Middle byte
-	data[3] = byte(length & 0xFF)         // LSB
+	copy(data, []byte("HE"))
+	binary.BigEndian.PutUint16(data[2:], status)
+	binary.BigEndian.PutUint32(data[4:], uint32(length))
 
 	return data
 }

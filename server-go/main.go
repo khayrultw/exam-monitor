@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -35,8 +34,10 @@ func (state *AppState) swtichScreen(screen string) {
 func main() {
 	go func() {
 		w := new(app.Window)
-		w.Option(app.Title("Hello gio"))
+
+		w.Option(app.Title("Exam Gaurd Server"))
 		w.Option(app.Size(unit.Dp(400), unit.Dp(600)))
+
 		if err := run(w); err != nil {
 			log.Fatal(err)
 			os.Exit(0)
@@ -53,7 +54,6 @@ func run(w *app.Window) error {
 	server := NewServer()
 
 	home := NewHomeState(func(room int) {
-		fmt.Println("Hello Nav")
 		state.swtichScreen("dashboard")
 		server.Start(room)
 	})
@@ -63,19 +63,12 @@ func run(w *app.Window) error {
 		server.Stop()
 	})
 
-	server.AddStudent = func() *Student {
-		student := dashboard.AddStudent("Unknown")
-		return student
-	}
-
-	server.RemoveStudent = func(id int) {
-		dashboard.removeStudent(id)
-	}
+	server.studentUtil = dashboard
 
 	var list widget.List
 	list.Axis = layout.Vertical
 
-	invalidateTicker := time.NewTicker(time.Millisecond * 250)
+	invalidateTicker := time.NewTicker(time.Second / 4)
 	go func() {
 		for range invalidateTicker.C {
 			w.Invalidate()

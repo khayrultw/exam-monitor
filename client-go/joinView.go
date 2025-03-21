@@ -23,8 +23,8 @@ func NewJoinView(start func(string, int)) *JoinView {
 		BtnStart:   new(widget.Clickable),
 		OnClick:    start,
 	}
-	joinView.NameEditor.SetText("John Doe")
-	joinView.RoomEditor.SetText("1234")
+	//joinView.NameEditor.SetText("John Doe")
+	//joinView.RoomEditor.SetText("1234")
 	return &joinView
 }
 
@@ -35,8 +35,6 @@ func (h *JoinView) Layout(gtx layout.Context, th *material.Theme) layout.Dimensi
 			h.OnClick(h.NameEditor.Text(), room)
 		}
 	}
-
-	println("JoinView.Layout")
 
 	return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
