@@ -1,8 +1,9 @@
 # exam-monitor
 
 ### To run on windows, download executable and double click
-
 ### Use terminal to run on linux
+- **windows**: [examgaurd-student-v1.0.0](https://github.com/khayrultw/exam-monitor/releases/download/v1.0.0-rc/examgaurd_student.exe)
+- **windows**: [examgaurd-teacher-v1.0.0](https://github.com/khayrultw/exam-monitor/releases/download/v1.0.0-rc/examgaurd_teacher)
 
 ## To build 
 
