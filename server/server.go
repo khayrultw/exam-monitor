@@ -83,8 +83,6 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 
 			dataType, dataSize, err := unpackHeader(header)
 
-			println("Reading data", dataSize)
-
 			if err != nil || dataSize <= 0 || dataSize > 5*1024*1024 {
 				continue
 			}

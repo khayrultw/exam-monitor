@@ -140,8 +140,6 @@ func (client *Client) SendScreenshot(screenshot []byte) {
 	if client.socket != nil {
 		client.sendData(PICTURE, screenshot)
 	}
-
-	println("Screenshot sent", len(screenshot))
 }
 
 func (client *Client) SendMessage(msg string) {
