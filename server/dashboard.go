@@ -39,6 +39,22 @@ func NewDashboardState(stop func()) *DashboardState {
 	}
 }
 
+func (ds *DashboardState) removeDuplicatesByName() {
+	highestIDByName := make(map[string]int)
+
+	for _, student := range ds.Students {
+		if currentMaxID, exists := highestIDByName[student.Name]; !exists || student.Id > currentMaxID {
+			highestIDByName[student.Name] = student.Id
+		}
+	}
+
+	for id, student := range ds.Students {
+		if highestIDByName[student.Name] != student.Id {
+			delete(ds.Students, id)
+		}
+	}
+}
+
 func (ds *DashboardState) AddStudent(name string) int {
 
 	student := &Student{
@@ -52,6 +68,11 @@ func (ds *DashboardState) AddStudent(name string) int {
 	ds.Students[student.Id] = student
 
 	return student.Id
+}
+
+func (ds *DashboardState) isExists(id int) bool {
+	_, ok := ds.Students[id]
+	return ok
 }
 
 func (ds *DashboardState) RemoveStudent(id int) {
@@ -84,6 +105,8 @@ func (ds *DashboardState) getStudentsAsSlice() []*Student {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
+	ds.removeDuplicatesByName()
+
 	keys := make([]int, 0, len(ds.Students))
 	for k := range ds.Students {
 		keys = append(keys, k)
@@ -114,7 +137,7 @@ func (ds *DashboardState) Layout(gtx layout.Context, th *material.Theme, list *w
 		gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{
-				Top: 8, Bottom: 0, Left: 16, Right: 16,
+				Top: 8, Bottom: 8, Left: 16, Right: 16,
 			}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceBetween}.Layout(
 					gtx,
