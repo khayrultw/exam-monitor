@@ -26,6 +26,7 @@ type StudentUtil interface {
 	RemoveStudent(id int)
 	UpdateImage(id int, img image.Image)
 	UpdateName(id int, name string)
+	isExists(id int) bool
 }
 
 func NewServer() *Server {
@@ -74,6 +75,9 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 		header := make([]byte, HEADER_SIZE)
 		data := make([]byte, 0)
 		for s.isRunning.Load() {
+			if !s.studentUtil.isExists(id) {
+				socket.Close()
+			}
 			_, err := io.ReadFull(socket, header)
 
 			if err != nil {
