@@ -35,7 +35,7 @@ func main() {
 	go func() {
 		w := new(app.Window)
 
-		w.Option(app.Title("Exam Gaurd Server"))
+		w.Option(app.Title("Exam Guard Server"))
 		w.Option(app.Size(unit.Dp(400), unit.Dp(600)))
 
 		if err := run(w); err != nil {
