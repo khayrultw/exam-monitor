@@ -21,7 +21,7 @@
 `go build . && ./client`
 
 ### For Mac
-First clone the repo, navigate to client and run below commands
+#### First clone the repo, navigate to client and run below commands
 `go mod tidy`
 `go run main.go`
 
