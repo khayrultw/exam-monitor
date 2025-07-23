@@ -22,6 +22,9 @@
 
 ### For Mac
 #### First clone the repo, navigate to client and run below commands
+`brew install go`
+<br>
 `go mod tidy`
+<br>
 `go run main.go`
 
