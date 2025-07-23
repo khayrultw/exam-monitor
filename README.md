@@ -19,3 +19,9 @@
 
 ##### To run the client, navigate to client-go then open terminal and execute the below command
 `go build . && ./client`
+
+### For Mac
+First clone the repo, navigate to client and run below commands
+`go mod tidy`
+`go run main.go`
+
