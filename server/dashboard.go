@@ -5,6 +5,8 @@ import (
 	"image"
 	"image/color"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 
 	"gioui.org/layout"
@@ -15,73 +17,52 @@ import (
 )
 
 type Student struct {
-	Id    int
+	Id    string
 	Name  string
 	Image image.Image
 }
 
 type DashboardState struct {
-	Students map[int]*Student
-	NextId   int
-	BtnStop  *widget.Clickable
-	Stop     func()
-	mu       sync.Mutex
+	colEditor *widget.Editor
+	Students  map[string]*Student
+	BtnStop   *widget.Clickable
+	Stop      func()
+	mu        sync.Mutex
 }
-
-const col = 3
 
 func NewDashboardState(stop func()) *DashboardState {
 	return &DashboardState{
-		Students: make(map[int]*Student),
-		NextId:   0,
-		BtnStop:  new(widget.Clickable),
-		Stop:     stop,
+		colEditor: new(widget.Editor),
+		Students:  make(map[string]*Student),
+		BtnStop:   new(widget.Clickable),
+		Stop:      stop,
 	}
 }
 
-func (ds *DashboardState) removeDuplicatesByName() {
-	highestIDByName := make(map[string]int)
-
-	for _, student := range ds.Students {
-		if currentMaxID, exists := highestIDByName[student.Name]; !exists || student.Id > currentMaxID {
-			highestIDByName[student.Name] = student.Id
-		}
-	}
-
-	for id, student := range ds.Students {
-		if highestIDByName[student.Name] != student.Id {
-			delete(ds.Students, id)
-		}
-	}
-}
-
-func (ds *DashboardState) AddStudent(name string) int {
+func (ds *DashboardState) AddStudent(id, name string) {
 
 	student := &Student{
-		Id:   ds.NextId,
+		Id:   id,
 		Name: name,
 	}
 
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
-	ds.NextId += 1
 	ds.Students[student.Id] = student
-
-	return student.Id
 }
 
-func (ds *DashboardState) isExists(id int) bool {
+func (ds *DashboardState) isExists(id string) bool {
 	_, ok := ds.Students[id]
 	return ok
 }
 
-func (ds *DashboardState) RemoveStudent(id int) {
+func (ds *DashboardState) RemoveStudent(id string) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	delete(ds.Students, id)
 }
 
-func (ds *DashboardState) UpdateImage(id int, img image.Image) {
+func (ds *DashboardState) UpdateImage(id string, img image.Image) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	student, ok := ds.Students[id]
@@ -91,7 +72,7 @@ func (ds *DashboardState) UpdateImage(id int, img image.Image) {
 	student.Image = img
 }
 
-func (ds *DashboardState) UpdateName(id int, name string) {
+func (ds *DashboardState) UpdateName(id string, name string) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	student, ok := ds.Students[id]
@@ -105,19 +86,15 @@ func (ds *DashboardState) getStudentsAsSlice() []*Student {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	ds.removeDuplicatesByName()
-
-	keys := make([]int, 0, len(ds.Students))
-	for k := range ds.Students {
-		keys = append(keys, k)
-	}
-	sort.Ints(keys) // Sorting the keys in ascending order
-
 	students := make([]*Student, 0, len(ds.Students))
-
-	for _, k := range keys {
-		students = append(students, ds.Students[k])
+	for _, student := range ds.Students {
+		students = append(students, student)
 	}
+
+	sort.Slice(students, func(i, j int) bool {
+		return students[i].Name < students[j].Name
+	})
+
 	return students
 }
 
@@ -127,8 +104,13 @@ func (ds *DashboardState) Layout(gtx layout.Context, th *material.Theme, list *w
 		ds.Stop()
 		ds.mu.Lock()
 		defer ds.mu.Unlock()
-		ds.Students = make(map[int]*Student, 0)
+		ds.Students = make(map[string]*Student, 0)
 		return layout.Dimensions{}
+	}
+
+	col, err := strconv.Atoi(strings.TrimSpace(ds.colEditor.Text()))
+	if err != nil || col <= 0 {
+		col = 3
 	}
 
 	students := ds.getStudentsAsSlice()
@@ -137,12 +119,27 @@ func (ds *DashboardState) Layout(gtx layout.Context, th *material.Theme, list *w
 		gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{
-				Top: 8, Bottom: 8, Left: 16, Right: 16,
+				Top: 8, Bottom: 8, Left: 8, Right: 16,
 			}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceBetween}.Layout(
 					gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return material.H5(th, fmt.Sprintf("Connected students %d", len(students))).Layout(gtx)
+						return material.H6(th, fmt.Sprintf("Total: %d", len(students))).Layout(gtx)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{
+							Axis:      layout.Horizontal,
+							Alignment: layout.Middle, // Center vertically
+						}.Layout(
+							gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return material.Body1(th, "Columns: ").Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								gtx.Constraints.Min.X = 50
+								return TextEditor(th, ds.colEditor, "3")(gtx)
+							}),
+						)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						btn := material.Button(th, ds.BtnStop, "Stop")
@@ -154,17 +151,17 @@ func (ds *DashboardState) Layout(gtx layout.Context, th *material.Theme, list *w
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return list.Layout(gtx, itemCount, func(gtx layout.Context, index int) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, ds.CreateRow(gtx, th, students, index)...)
+				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, ds.CreateRow(gtx, th, students, index, col)...)
 			})
 		}),
 	)
 }
 
-func (ds *DashboardState) CreateRow(gtx layout.Context, th *material.Theme, students []*Student, rowIndex int) []layout.FlexChild {
+func (ds *DashboardState) CreateRow(gtx layout.Context, th *material.Theme, students []*Student, rowIndex int, col int) []layout.FlexChild {
 	var row []layout.FlexChild
 	start := rowIndex * col
 	end := min(start+col, len(students))
-	width := (gtx.Constraints.Max.X - 2*col*8) / col // Get equal width for each item
+	width := (gtx.Constraints.Max.X - 2*col*8) / col
 
 	for i := start; i < end; i++ {
 		item := students[i]
@@ -176,7 +173,7 @@ func (ds *DashboardState) CreateRow(gtx layout.Context, th *material.Theme, stud
 	// Fill empty slots in case items are not exactly multiple of 3
 	for len(row) < col {
 		row = append(row, layout.Flexed(1.0/float32(col), func(gtx layout.Context) layout.Dimensions {
-			return layout.Dimensions{} // Empty space
+			return layout.Dimensions{}
 		}))
 	}
 

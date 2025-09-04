@@ -7,6 +7,7 @@ import (
 	"image"
 	"io"
 	"net"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -22,11 +23,11 @@ type Server struct {
 }
 
 type StudentUtil interface {
-	AddStudent(name string) int
-	RemoveStudent(id int)
-	UpdateImage(id int, img image.Image)
-	UpdateName(id int, name string)
-	isExists(id int) bool
+	AddStudent(id, name string)
+	RemoveStudent(id string)
+	UpdateImage(id string, img image.Image)
+	UpdateName(id string, name string)
+	isExists(id string) bool
 }
 
 func NewServer() *Server {
@@ -68,55 +69,60 @@ func (s *Server) Start(port int) {
 }
 
 func (s *Server) handleStudent(socket *net.TCPConn) {
-	id := s.studentUtil.AddStudent("Unknown")
+	defer socket.Close()
+	id := ""
+	header := make([]byte, HEADER_SIZE)
+	data := make([]byte, 0)
 
-	go func() {
-		defer socket.Close()
-		header := make([]byte, HEADER_SIZE)
-		data := make([]byte, 0)
-		for s.isRunning.Load() {
-			if !s.studentUtil.isExists(id) {
-				socket.Close()
-			}
-			_, err := io.ReadFull(socket, header)
+	for s.isRunning.Load() {
+		_, err := io.ReadFull(socket, header)
 
-			if err != nil {
-				s.studentUtil.RemoveStudent(id)
+		if err != nil {
+			s.studentUtil.RemoveStudent(id)
+			break
+		}
+
+		dataType, dataSize, err := unpackHeader(header)
+
+		if err != nil || dataSize <= 0 || dataSize > 5*1024*1024 {
+			break
+		}
+
+		if len(data) < dataSize {
+			data = make([]byte, dataSize)
+		}
+		_, err = io.ReadFull(socket, data[:dataSize])
+
+		if err != nil {
+			break
+		}
+
+		switch dataType {
+		case 0:
+			info := string(data[:dataSize])
+			parts := strings.SplitN(info, "###", 2)
+			if len(parts) != 2 {
 				break
 			}
-
-			dataType, dataSize, err := unpackHeader(header)
-
-			if err != nil || dataSize <= 0 || dataSize > 5*1024*1024 {
-				continue
-			}
-
-			if len(data) < dataSize {
-				data = make([]byte, dataSize)
-			}
-			_, err = io.ReadFull(socket, data[:dataSize])
-
-			if err != nil {
-				continue
-			}
-
-			switch dataType {
-			case 0:
-				name := string(data[:dataSize])
+			id = strings.TrimSpace(parts[0])
+			name := strings.TrimSpace(parts[1])
+			if !s.studentUtil.isExists(id) {
+				s.studentUtil.AddStudent(id, name)
+			} else {
 				s.studentUtil.UpdateName(id, name)
-			case 1:
-				msg := string(data[:dataSize])
-				println(msg)
-			default:
-				img, _, err := image.Decode(bytes.NewReader(data[:dataSize]))
-				if err == nil {
-					s.studentUtil.UpdateImage(id, img) // Check if zero array can be formed
+			}
+		case 1:
+			msg := string(data[:dataSize])
+			println(msg)
+		default:
+			img, _, err := image.Decode(bytes.NewReader(data[:dataSize]))
+			if err == nil {
+				s.studentUtil.UpdateImage(id, img) // Check if zero array can be formed
 
-				}
 			}
 		}
-		s.studentUtil.RemoveStudent(id)
-	}()
+	}
+	s.studentUtil.RemoveStudent(id)
 }
 
 func (s *Server) broadcastHost(port int) {

@@ -43,7 +43,7 @@ func NewClient() *Client {
 	return &client
 }
 
-func (client *Client) Start(studentName string, port int, updateUI func()) {
+func (client *Client) Start(studentId, studentName string, port int, updateUI func()) {
 	client.isRunning.Store(true)
 	go func() {
 		retryDelay := 1 * time.Second
@@ -69,7 +69,7 @@ func (client *Client) Start(studentName string, port int, updateUI func()) {
 				continue
 			}
 
-			client.SendStudentName(studentName)
+			client.SendStudentName(studentId + "###" + studentName)
 
 			for client.isConnected.Load() {
 				screenshot, err := client.captureScreen()
