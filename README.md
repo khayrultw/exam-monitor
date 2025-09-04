@@ -9,7 +9,10 @@
 
 #### Make sure you have golang installed
 
-##### To run the server, navigate to server-go and execute
+##### To run the server, navigate to server-go and execute on linux
+Install following packages
+`libvulkan-dev libxkbcommon-x11-dev libx11-xcb-dev`
+Then
 `go build . && ./server`
 
 #### To build executable for windows, navigate to client-go and execute
