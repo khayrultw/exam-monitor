@@ -33,7 +33,7 @@ func main() {
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("Exam Guard Client"))
-		w.Option(app.Size(unit.Dp(400), unit.Dp(600)))
+		w.Option(app.Size(unit.Dp(1000), unit.Dp(700)))
 		if err := run(w); err != nil {
 			log.Fatal(err)
 			os.Exit(0)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image/color"
 	"strconv"
 	"strings"
 
@@ -26,20 +27,20 @@ func NewJoinView(start func(string, string, int)) *JoinView {
 		BtnStart:   new(widget.Clickable),
 		OnClick:    start,
 	}
-	joinView.IdEditor.SingleLine = true
-	joinView.NameEditor.SingleLine = true
-	joinView.RoomEditor.SingleLine = true
 	return &joinView
 }
 
 func (h *JoinView) Layout(gtx layout.Context, th *material.Theme) layout.Dimensions {
-	if h.BtnStart.Clicked(gtx) {
-		room, err := strconv.Atoi(strings.TrimSpace(h.RoomEditor.Text()))
+	// Check if all fields are non-empty
+	idText := strings.TrimSpace(h.IdEditor.Text())
+	nameText := strings.TrimSpace(h.NameEditor.Text())
+	roomText := strings.TrimSpace(h.RoomEditor.Text())
+	allFieldsFilled := idText != "" && nameText != "" && roomText != ""
+
+	if h.BtnStart.Clicked(gtx) && allFieldsFilled {
+		room, err := strconv.Atoi(roomText)
 		if err == nil {
-			h.OnClick(
-				strings.TrimSpace(h.IdEditor.Text()),
-				strings.TrimSpace(h.NameEditor.Text()),
-				room)
+			h.OnClick(idText, nameText, room)
 		}
 	}
 
@@ -70,7 +71,12 @@ func (h *JoinView) Layout(gtx layout.Context, th *material.Theme) layout.Dimensi
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					gtx.Constraints.Min.X = 200
-					return material.Button(th, h.BtnStart, "Start").Layout(gtx)
+					btn := material.Button(th, h.BtnStart, "Start")
+					if !allFieldsFilled {
+						btn.Background = color.NRGBA{R: 200, G: 200, B: 200, A: 255}
+						btn.Color = color.NRGBA{R: 150, G: 150, B: 150, A: 255}
+					}
+					return btn.Layout(gtx)
 				}),
 			)
 		})

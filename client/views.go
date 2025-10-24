@@ -10,10 +10,11 @@ import (
 )
 
 func TextEditor(th *material.Theme, editor *widget.Editor, hint string) layout.Widget {
+	editor.SingleLine = true
 	return func(gtx layout.Context) layout.Dimensions {
 		return NewBorder().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{
-				Top: 8, Bottom: 8, Left: 8, Right: 8,
+				Top: 12, Bottom: 12, Left: 8, Right: 8,
 			}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return material.Editor(th, editor, hint).Layout(gtx)
 			})

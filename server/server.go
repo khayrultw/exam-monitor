@@ -34,7 +34,6 @@ func NewServer() *Server {
 	server := Server{
 		isRunning: atomic.Bool{},
 	}
-
 	server.isRunning.Store(false)
 	return &server
 }
@@ -117,7 +116,7 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 		default:
 			img, _, err := image.Decode(bytes.NewReader(data[:dataSize]))
 			if err == nil {
-				s.studentUtil.UpdateImage(id, img) // Check if zero array can be formed
+				s.studentUtil.UpdateImage(id, img)
 
 			}
 		}
