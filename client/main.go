@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image/color"
 	"log"
 	"os"
 	"sync"
@@ -16,6 +17,21 @@ type AppState struct {
 	currentScreen string
 	mu            sync.Mutex
 }
+
+// Custom palette for theming
+var AppPalette = material.Palette{
+	Bg:         color.NRGBA{R: 255, G: 255, B: 255, A: 255}, // White
+	Fg:         color.NRGBA{R: 17, G: 24, B: 39, A: 255},    // gray-900
+	ContrastBg: color.NRGBA{R: 37, G: 99, B: 235, A: 255},   // blue-600 (Primary)
+	ContrastFg: color.NRGBA{R: 255, G: 255, B: 255, A: 255}, // White
+}
+
+// Error color for validation
+var ErrorColor = color.NRGBA{R: 220, G: 38, B: 38, A: 255} // red-600
+
+// Disabled colors
+var DisabledBg = color.NRGBA{R: 229, G: 231, B: 235, A: 255} // gray-200
+var DisabledFg = color.NRGBA{R: 156, G: 163, B: 175, A: 255} // gray-400
 
 func NewAppState() AppState {
 	return AppState{
@@ -33,7 +49,7 @@ func main() {
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("Exam Guard Client"))
-		w.Option(app.Size(unit.Dp(1000), unit.Dp(700)))
+		w.Option(app.Size(unit.Dp(400), unit.Dp(600)))
 		if err := run(w); err != nil {
 			log.Fatal(err)
 			os.Exit(0)
@@ -46,9 +62,13 @@ func main() {
 func run(w *app.Window) error {
 	var ops op.Ops
 	th := material.NewTheme()
+	th.Palette = AppPalette
 	state := NewAppState()
+
 	dashboard := NewDashboardState(func() {
 		state.swtichScreen("join")
+	}, func() {
+		w.Invalidate()
 	})
 
 	joinView := NewJoinView(func(sid string, name string, room int) {

@@ -27,9 +27,12 @@ const (
 )
 
 type Client struct {
-	isRunning   atomic.Bool
-	isConnected atomic.Bool
-	socket      *net.TCPConn
+	isRunning    atomic.Bool
+	isConnected  atomic.Bool
+	socket       *net.TCPConn
+	lastSentTime atomic.Value // stores time.Time
+	onConnected  func()
+	onError      func(error)
 }
 
 func NewClient() *Client {
@@ -40,32 +43,57 @@ func NewClient() *Client {
 	}
 	client.isConnected.Store(false)
 	client.isRunning.Store(false)
+	client.lastSentTime.Store(time.Time{})
 	return &client
+}
+
+func (client *Client) SetCallbacks(onConnected func(), onError func(error)) {
+	client.onConnected = onConnected
+	client.onError = onError
+}
+
+func (client *Client) GetLastSentTime() time.Time {
+	if t := client.lastSentTime.Load(); t != nil {
+		return t.(time.Time)
+	}
+	return time.Time{}
 }
 
 func (client *Client) Start(studentId, studentName string, port int, updateUI func()) {
 	client.isRunning.Store(true)
 	go func() {
 		retryDelay := 1 * time.Second
+		timeout := 10 * time.Second
+
 		for client.isRunning.Load() {
 			client.isConnected.Store(false)
 			updateUI()
-			serverAddress, err := discoverServer(port)
-			//println(serverAddress)
+
+			// Discover server with timeout
+			serverAddress, err := discoverServerWithTimeout(port, timeout)
 			if err != nil {
+				if client.onError != nil {
+					client.onError(err)
+				}
 				time.Sleep(retryDelay)
 				retryDelay = min(retryDelay*2, 8*time.Second)
-				println(err)
 				continue
 			}
+
 			client.isConnected.Store(true)
+			if client.onConnected != nil {
+				client.onConnected()
+			}
 			updateUI()
 			retryDelay = 1 * time.Second
+
 			client.socket, err = net.DialTCP("tcp", nil, &net.TCPAddr{IP: net.ParseIP(serverAddress), Port: port})
 			if err != nil {
+				if client.onError != nil {
+					client.onError(err)
+				}
 				time.Sleep(retryDelay)
 				retryDelay = min(retryDelay*2, 8*time.Second)
-				println(err.Error())
 				continue
 			}
 
@@ -77,6 +105,8 @@ func (client *Client) Start(studentId, studentName string, port int, updateUI fu
 					break
 				}
 				client.SendScreenshot(screenshot)
+				client.lastSentTime.Store(time.Now())
+				updateUI()
 				time.Sleep(UPDATE_INTERVAL)
 			}
 
@@ -86,7 +116,7 @@ func (client *Client) Start(studentId, studentName string, port int, updateUI fu
 	}()
 }
 
-func discoverServer(port int) (string, error) {
+func discoverServerWithTimeout(port int, timeout time.Duration) (string, error) {
 	address := net.UDPAddr{
 		IP:   net.IPv4(0, 0, 0, 0),
 		Port: port,
@@ -97,6 +127,9 @@ func discoverServer(port int) (string, error) {
 		return "", err
 	}
 	defer conn.Close()
+
+	// Set read deadline
+	conn.SetReadDeadline(time.Now().Add(timeout))
 
 	buffer := make([]byte, 1024)
 	for {
