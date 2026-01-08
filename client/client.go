@@ -27,12 +27,13 @@ const (
 )
 
 type Client struct {
-	isRunning    atomic.Bool
-	isConnected  atomic.Bool
-	socket       *net.TCPConn
-	lastSentTime atomic.Value // stores time.Time
-	onConnected  func()
-	onError      func(error)
+	isRunning      atomic.Bool
+	isConnected    atomic.Bool
+	socket         *net.TCPConn
+	lastSentTime   atomic.Value
+	onConnected    func()
+	onError        func(error)
+	cachedServerIP string
 }
 
 func NewClient() *Client {
@@ -69,16 +70,40 @@ func (client *Client) Start(studentId, studentName string, port int, updateUI fu
 			client.isConnected.Store(false)
 			updateUI()
 
-			// Discover server with timeout
-			serverAddress, err := discoverServerWithTimeout(port, timeout)
+			var serverAddress string
+			var err error
+
+			if client.cachedServerIP != "" {
+				serverAddress = client.cachedServerIP
+			} else {
+				serverAddress, err = discoverServerWithTimeout(port, timeout)
+				if err != nil {
+					if client.onError != nil {
+						client.onError(err)
+					}
+					client.cachedServerIP = ""
+					time.Sleep(retryDelay)
+					retryDelay = min(retryDelay*2, 8*time.Second)
+					continue
+				}
+
+				client.cachedServerIP = serverAddress
+			}
+
+			client.socket, err = net.DialTCP("tcp", nil, &net.TCPAddr{IP: net.ParseIP(serverAddress), Port: port})
 			if err != nil {
 				if client.onError != nil {
 					client.onError(err)
 				}
+				client.cachedServerIP = ""
 				time.Sleep(retryDelay)
 				retryDelay = min(retryDelay*2, 8*time.Second)
 				continue
 			}
+
+			client.socket.SetKeepAlive(true)
+			client.socket.SetKeepAlivePeriod(5 * time.Second)
+			client.socket.SetNoDelay(true)
 
 			client.isConnected.Store(true)
 			if client.onConnected != nil {
@@ -87,24 +112,18 @@ func (client *Client) Start(studentId, studentName string, port int, updateUI fu
 			updateUI()
 			retryDelay = 1 * time.Second
 
-			client.socket, err = net.DialTCP("tcp", nil, &net.TCPAddr{IP: net.ParseIP(serverAddress), Port: port})
-			if err != nil {
-				if client.onError != nil {
-					client.onError(err)
-				}
-				time.Sleep(retryDelay)
-				retryDelay = min(retryDelay*2, 8*time.Second)
-				continue
-			}
-
 			client.SendStudentName(studentId + "###" + studentName)
 
-			for client.isConnected.Load() {
+			for client.isConnected.Load() && client.isRunning.Load() {
 				screenshot, err := client.captureScreen()
+				if err != nil {
+					client.isConnected.Store(false)
+					break
+				}
+				err = client.SendScreenshot(screenshot)
 				if err != nil {
 					break
 				}
-				client.SendScreenshot(screenshot)
 				client.lastSentTime.Store(time.Now())
 				updateUI()
 				time.Sleep(UPDATE_INTERVAL)
@@ -128,7 +147,6 @@ func discoverServerWithTimeout(port int, timeout time.Duration) (string, error) 
 	}
 	defer conn.Close()
 
-	// Set read deadline
 	conn.SetReadDeadline(time.Now().Add(timeout))
 
 	buffer := make([]byte, 1024)
@@ -163,22 +181,25 @@ func (client *Client) captureScreen() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (client *Client) SendStudentName(name string) {
+func (client *Client) SendStudentName(name string) error {
 	if client.socket != nil {
-		client.sendData(NAME, []byte(name))
+		return client.sendData(NAME, []byte(name))
 	}
+	return nil
 }
 
-func (client *Client) SendScreenshot(screenshot []byte) {
+func (client *Client) SendScreenshot(screenshot []byte) error {
 	if client.socket != nil {
-		client.sendData(PICTURE, screenshot)
+		return client.sendData(PICTURE, screenshot)
 	}
+	return nil
 }
 
-func (client *Client) SendMessage(msg string) {
+func (client *Client) SendMessage(msg string) error {
 	if client.socket != nil {
-		client.sendData(MESSAGE, []byte(msg))
+		return client.sendData(MESSAGE, []byte(msg))
 	}
+	return nil
 }
 
 func (client *Client) Stop() {
@@ -189,7 +210,7 @@ func (client *Client) Stop() {
 	}
 }
 
-func (client *Client) sendData(dataType uint16, dataBytes []byte) {
+func (client *Client) sendData(dataType uint16, dataBytes []byte) error {
 	data := make([]byte, HEADER_SIZE+len(dataBytes))
 	copy(data, client.packHeader(dataType, len(dataBytes)))
 	copy(data[HEADER_SIZE:], dataBytes)
@@ -198,8 +219,9 @@ func (client *Client) sendData(dataType uint16, dataBytes []byte) {
 	if err != nil {
 		println(err.Error())
 		client.isConnected.Store(false)
+		return err
 	}
-
+	return nil
 }
 
 func (client *Client) packHeader(status uint16, length int) []byte {

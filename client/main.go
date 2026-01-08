@@ -18,7 +18,6 @@ type AppState struct {
 	mu            sync.Mutex
 }
 
-// Custom palette for theming
 var AppPalette = material.Palette{
 	Bg:         color.NRGBA{R: 255, G: 255, B: 255, A: 255}, // White
 	Fg:         color.NRGBA{R: 17, G: 24, B: 39, A: 255},    // gray-900
@@ -26,10 +25,8 @@ var AppPalette = material.Palette{
 	ContrastFg: color.NRGBA{R: 255, G: 255, B: 255, A: 255}, // White
 }
 
-// Error color for validation
 var ErrorColor = color.NRGBA{R: 220, G: 38, B: 38, A: 255} // red-600
 
-// Disabled colors
 var DisabledBg = color.NRGBA{R: 229, G: 231, B: 235, A: 255} // gray-200
 var DisabledFg = color.NRGBA{R: 156, G: 163, B: 175, A: 255} // gray-400
 

@@ -31,15 +31,12 @@ func NewDashboardState(stop func(), updateUI func()) *DashboardState {
 		UpdateUI:  updateUI,
 	}
 
-	// Set up callbacks
 	client.SetCallbacks(
 		func() {
-			// On connected
 			ds.errorMsg = ""
 			ds.UpdateUI()
 		},
 		func(err error) {
-			// On error
 			ds.errorMsg = err.Error()
 			ds.UpdateUI()
 		},
@@ -49,7 +46,6 @@ func NewDashboardState(stop func(), updateUI func()) *DashboardState {
 }
 
 func (d *DashboardState) Layout(gtx layout.Context, th *material.Theme) layout.Dimensions {
-	// Handle button clicks
 	if d.BtnStop.Clicked(gtx) {
 		d.Stop()
 		d.client.Stop()
@@ -57,7 +53,6 @@ func (d *DashboardState) Layout(gtx layout.Context, th *material.Theme) layout.D
 
 	if d.BtnRetry.Clicked(gtx) {
 		d.errorMsg = ""
-		// Retry is implicit - client will keep trying
 	}
 
 	if d.BtnCancel.Clicked(gtx) {
@@ -66,10 +61,8 @@ func (d *DashboardState) Layout(gtx layout.Context, th *material.Theme) layout.D
 	}
 
 	if d.client.isConnected.Load() {
-		// Connected state
 		return d.layoutConnected(gtx, th)
 	} else {
-		// Searching state
 		return d.layoutSearching(gtx, th)
 	}
 }
@@ -79,7 +72,6 @@ func (d *DashboardState) layoutSearching(gtx layout.Context, th *material.Theme)
 		return MaxWidthContainer(gtx, 480, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(
 				gtx,
-				// Loader
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						loader := material.Loader(th)
@@ -89,7 +81,6 @@ func (d *DashboardState) layoutSearching(gtx layout.Context, th *material.Theme)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Spacer{Height: unit.Dp(16)}.Layout(gtx)
 				}),
-				// Status message
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						msg := material.Body1(th, "Looking for the server…")
@@ -110,7 +101,6 @@ func (d *DashboardState) layoutSearching(gtx layout.Context, th *material.Theme)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Spacer{Height: unit.Dp(24)}.Layout(gtx)
 				}),
-				// Error banner (if any)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if d.errorMsg != "" {
 						return layout.Inset{Bottom: 16}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -127,7 +117,6 @@ func (d *DashboardState) layoutSearching(gtx layout.Context, th *material.Theme)
 					}
 					return layout.Dimensions{}
 				}),
-				// Cancel Button
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						btn := material.Button(th, d.BtnCancel, "Cancel")
@@ -162,7 +151,6 @@ func (d *DashboardState) layoutConnected(gtx layout.Context, th *material.Theme)
 		return MaxWidthContainer(gtx, 480, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(
 				gtx,
-				// Success indicator
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						status := material.H6(th, "✓  Screen Sharing Started")
@@ -173,17 +161,7 @@ func (d *DashboardState) layoutConnected(gtx layout.Context, th *material.Theme)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Spacer{Height: unit.Dp(24)}.Layout(gtx)
 				}),
-				// Connection info
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						info := material.Body1(th, "Status: Sending screenshots every 0.5s")
-						info.TextSize = unit.Sp(14)
-						return info.Layout(gtx)
-					})
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Spacer{Height: unit.Dp(8)}.Layout(gtx)
-				}),
+			
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						lastSentLabel := material.Body2(th, fmt.Sprintf("Last sent: %s", timeSinceStr))
@@ -195,25 +173,12 @@ func (d *DashboardState) layoutConnected(gtx layout.Context, th *material.Theme)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Spacer{Height: unit.Dp(32)}.Layout(gtx)
 				}),
-				// Stop button
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						btn := material.Button(th, d.BtnStop, "Stop")
 						btn.Background = ErrorColor
 						gtx.Constraints.Min.X = gtx.Dp(unit.Dp(200))
 						return btn.Layout(gtx)
-					})
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Spacer{Height: unit.Dp(16)}.Layout(gtx)
-				}),
-				// Footer
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						footer := material.Body2(th, "v1.0 • Connected")
-						footer.TextSize = unit.Sp(10)
-						footer.Color = DisabledFg
-						return footer.Layout(gtx)
 					})
 				}),
 			)
