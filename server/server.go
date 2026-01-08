@@ -8,18 +8,24 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
 
 const (
-	HEADER_SIZE = 8
+	HEADER_SIZE          = 8
+	READ_TIMEOUT         = 10 * time.Second
+	REMOVAL_GRACE_PERIOD = 5 * time.Second // Keep student visible for a few seconds after disconnect
 )
 
 type Server struct {
 	listener    *net.TCPListener
 	isRunning   atomic.Bool
 	studentUtil StudentUtil
+	// Track active connections per student ID to handle reconnection race conditions
+	activeConns   map[string]int64 // studentID -> connection timestamp
+	activeConnsMu sync.Mutex
 }
 
 type StudentUtil interface {
@@ -32,7 +38,8 @@ type StudentUtil interface {
 
 func NewServer() *Server {
 	server := Server{
-		isRunning: atomic.Bool{},
+		isRunning:   atomic.Bool{},
+		activeConns: make(map[string]int64),
 	}
 	server.isRunning.Store(false)
 	return &server
@@ -67,17 +74,44 @@ func (s *Server) Start(port int) {
 	}()
 }
 
+func (s *Server) registerConnection(id string) int64 {
+	s.activeConnsMu.Lock()
+	defer s.activeConnsMu.Unlock()
+	timestamp := time.Now().UnixNano()
+	s.activeConns[id] = timestamp
+	return timestamp
+}
+
+func (s *Server) scheduleStudentRemoval(id string, connTimestamp int64) {
+	time.Sleep(REMOVAL_GRACE_PERIOD)
+
+	s.activeConnsMu.Lock()
+	defer s.activeConnsMu.Unlock()
+
+	// Only remove if this connection is still the active one for this student
+	// If a newer connection exists (reconnected during grace period), don't remove
+	if currentTimestamp, exists := s.activeConns[id]; exists {
+		if currentTimestamp == connTimestamp {
+			delete(s.activeConns, id)
+			s.studentUtil.RemoveStudent(id)
+		}
+		// A newer connection exists, don't remove the student
+	}
+}
+
 func (s *Server) handleStudent(socket *net.TCPConn) {
 	defer socket.Close()
 	id := ""
+	var connTimestamp int64 = 0
 	header := make([]byte, HEADER_SIZE)
 	data := make([]byte, 0)
 
 	for s.isRunning.Load() {
+		socket.SetReadDeadline(time.Now().Add(READ_TIMEOUT))
+
 		_, err := io.ReadFull(socket, header)
 
 		if err != nil {
-			s.studentUtil.RemoveStudent(id)
 			break
 		}
 
@@ -90,6 +124,8 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 		if len(data) < dataSize {
 			data = make([]byte, dataSize)
 		}
+
+		socket.SetReadDeadline(time.Now().Add(READ_TIMEOUT))
 		_, err = io.ReadFull(socket, data[:dataSize])
 
 		if err != nil {
@@ -105,6 +141,9 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 			}
 			id = strings.TrimSpace(parts[0])
 			name := strings.TrimSpace(parts[1])
+
+			connTimestamp = s.registerConnection(id)
+
 			if !s.studentUtil.isExists(id) {
 				s.studentUtil.AddStudent(id, name)
 			} else {
@@ -117,11 +156,15 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 			img, _, err := image.Decode(bytes.NewReader(data[:dataSize]))
 			if err == nil {
 				s.studentUtil.UpdateImage(id, img)
-
 			}
 		}
 	}
-	s.studentUtil.RemoveStudent(id)
+
+	// Schedule student removal with grace period
+	// If client reconnects within the grace period, they won't be removed
+	if id != "" && connTimestamp != 0 {
+		go s.scheduleStudentRemoval(id, connTimestamp)
+	}
 }
 
 func (s *Server) broadcastHost(port int) {
@@ -129,19 +172,23 @@ func (s *Server) broadcastHost(port int) {
 		IP:   net.IPv4(255, 255, 255, 255),
 		Port: port,
 	}
-	conn, err := net.DialUDP("udp", nil, &address)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
 
 	message := []byte("server")
 	for s.isRunning.Load() {
-		_, err := conn.Write(message)
+		conn, err := net.DialUDP("udp", nil, &address)
 		if err != nil {
-			return
+			time.Sleep(1 * time.Second)
+			continue
 		}
-		time.Sleep(2 * time.Second)
+
+		_, err = conn.Write(message)
+		conn.Close()
+
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		time.Sleep(1 * time.Second)
 	}
 }
 
