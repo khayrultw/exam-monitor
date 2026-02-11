@@ -4,7 +4,7 @@
 package capture
 
 /*
-#cgo LDFLAGS: -ld3d11 -ldxgi -lole32
+#cgo LDFLAGS: -ld3d11 -ldxgi -lole32 -luuid
 
 #include <stdlib.h>
 #include <string.h>

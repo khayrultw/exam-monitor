@@ -4,5 +4,5 @@
 package capture
 
 func NewPlatformCapturer() Capturer {
-	return NewCGCapturer()
+	return NewSCKCapturer()
 }
