@@ -268,7 +268,7 @@ func (s *Server) decodeKeyFrame(id string, data []byte) image.Image {
 	draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
 	dec.canvas = rgba
 
-	return rgba
+	return img
 }
 
 func (s *Server) decodeDirtyRects(id string, data []byte) image.Image {

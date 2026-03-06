@@ -48,19 +48,22 @@
     dispatch_semaphore_signal(_frameSemaphore);
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wobjc-missing-super-calls"
 - (void)dealloc {
     if (_latestFrame) {
         CVPixelBufferRelease(_latestFrame);
         _latestFrame = NULL;
     }
 }
+#pragma clang diagnostic pop
 
 @end
 
 typedef struct SCKCapture {
-    __strong SCStream *stream;
-    __strong SCKStreamDelegate *delegate;
-    __strong dispatch_queue_t queue;
+    SCStream *stream;
+    SCKStreamDelegate *delegate;
+    dispatch_queue_t queue;
     int width;
     int height;
     int running;
@@ -267,10 +270,14 @@ void sck_capture_destroy(SCKCapture *cap) {
         sck_capture_stop(cap);
     }
 
-    // Nil all __strong fields before free so ARC releases them
-    cap->stream = nil;
-    cap->delegate = nil;
-    cap->queue = nil;
+    if (@available(macOS 12.3, *)) {
+        if (cap->stream) {
+            cap->stream = nil;
+        }
+        if (cap->delegate) {
+            cap->delegate = nil;
+        }
+    }
 
     free(cap);
 }
