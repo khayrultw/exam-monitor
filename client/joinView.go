@@ -11,12 +11,11 @@ import (
 )
 
 type JoinView struct {
-	IdEditor     *widget.Editor
-	NameEditor   *widget.Editor
-	RoomEditor   *widget.Editor
-	ServerEditor *widget.Editor
-	BtnStart     *widget.Clickable
-	OnClick      func(string, string, int, string)
+	IdEditor   *widget.Editor
+	NameEditor *widget.Editor
+	RoomEditor *widget.Editor
+	BtnStart   *widget.Clickable
+	OnClick    func(string, string, int)
 
 	idError   string
 	nameError string
@@ -25,32 +24,26 @@ type JoinView struct {
 	submitAttempted bool
 }
 
-func NewJoinView(start func(string, string, int, string)) *JoinView {
+func NewJoinView(start func(string, string, int)) *JoinView {
 	joinView := JoinView{
-		IdEditor:     new(widget.Editor),
-		NameEditor:   new(widget.Editor),
-		RoomEditor:   new(widget.Editor),
-		ServerEditor: new(widget.Editor),
-		BtnStart:     new(widget.Clickable),
-		OnClick:      start,
+		IdEditor:   new(widget.Editor),
+		NameEditor: new(widget.Editor),
+		RoomEditor: new(widget.Editor),
+		BtnStart:   new(widget.Clickable),
+		OnClick:    start,
 	}
 
 	joinView.RoomEditor.Filter = "0123456789"
 	joinView.RoomEditor.MaxLen = 6
 
-	joinView.ServerEditor.Filter = "0123456789."
-	joinView.ServerEditor.MaxLen = 15
-
 	joinView.IdEditor.Submit = true
 	joinView.NameEditor.Submit = true
 	joinView.RoomEditor.Submit = true
-	joinView.ServerEditor.Submit = true
 
 	if data, err := LoadFormData(); err == nil && data != nil {
 		joinView.IdEditor.SetText(data.StudentID)
 		joinView.NameEditor.SetText(data.Name)
 		joinView.RoomEditor.SetText(data.Room)
-		joinView.ServerEditor.SetText(data.ServerIP)
 	}
 
 	return &joinView
@@ -115,11 +108,10 @@ func (h *JoinView) handleSubmit() {
 		room, _ := strconv.Atoi(strings.TrimSpace(h.RoomEditor.Text()))
 		studentID := strings.TrimSpace(h.IdEditor.Text())
 		name := strings.TrimSpace(h.NameEditor.Text())
-		serverIP := strings.TrimSpace(h.ServerEditor.Text())
 
-		SaveFormData(studentID, name, strings.TrimSpace(h.RoomEditor.Text()), serverIP)
+		SaveFormData(studentID, name, strings.TrimSpace(h.RoomEditor.Text()))
 
-		h.OnClick(studentID, name, room, serverIP)
+		h.OnClick(studentID, name, room)
 	}
 }
 
@@ -168,14 +160,6 @@ func (h *JoinView) Layout(gtx layout.Context, th *material.Theme) layout.Dimensi
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return FormRow(gtx, "Room (digits only)", th, func(gtx layout.Context) layout.Dimensions {
 						return TextEditorWithError(th, h.RoomEditor, "Enter room number", roomErr)(gtx)
-					})
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Spacer{Height: unit.Dp(16)}.Layout(gtx)
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return FormRow(gtx, "Server IP (optional)", th, func(gtx layout.Context) layout.Dimensions {
-						return TextEditor(th, h.ServerEditor, "Auto-detect if empty")(gtx)
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

@@ -69,7 +69,7 @@ func (client *Client) GetLastSentTime() time.Time {
 	return time.Time{}
 }
 
-func (client *Client) Start(studentId, studentName string, port int, serverIP string, updateUI func()) {
+func (client *Client) Start(studentId, studentName string, port int, updateUI func()) {
 	client.isRunning.Store(true)
 	go func() {
 		retryDelay := 1 * time.Second
@@ -82,9 +82,7 @@ func (client *Client) Start(studentId, studentName string, port int, serverIP st
 			var serverAddress string
 			var err error
 
-			if serverIP != "" {
-				serverAddress = serverIP
-			} else if client.cachedServerIP != "" {
+			if client.cachedServerIP != "" {
 				serverAddress = client.cachedServerIP
 			} else {
 				serverAddress, err = discoverServerWithTimeout(port, timeout)
