@@ -1,20 +1,20 @@
 package main
 
 import (
-	"time"
-
 	"image"
+	"sync/atomic"
 
 	"gioui.org/widget"
 )
 
+var globalImageVersion atomic.Uint64
+
 type Student struct {
-	Id        string
-	Name      string
-	Image     image.Image
-	ImagePtr  uintptr
-	Timestamp time.Time
-	Clickable *widget.Clickable
+	Id           string
+	Name         string
+	Image        image.Image
+	ImageVersion uint64
+	Clickable    *widget.Clickable
 }
 
 func NewStudent(id, name string) *Student {
@@ -22,15 +22,10 @@ func NewStudent(id, name string) *Student {
 		Id:        id,
 		Name:      name,
 		Clickable: new(widget.Clickable),
-		Timestamp: time.Now(),
 	}
 }
 
 func (s *Student) UpdateImage(img image.Image) {
 	s.Image = img
-	s.ImagePtr = uintptr(0)
-	if img != nil {
-		s.ImagePtr = uintptr(img.Bounds().Min.X)<<32 | uintptr(img.Bounds().Min.Y)
-	}
-	s.Timestamp = time.Now()
+	s.ImageVersion = globalImageVersion.Add(1)
 }

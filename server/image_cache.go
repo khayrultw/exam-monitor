@@ -1,15 +1,12 @@
 package main
 
 import (
-	"time"
-
 	"gioui.org/op/paint"
 )
 
 type ImageCache struct {
-	op        paint.ImageOp
-	imagePtr  uintptr
-	timestamp time.Time
+	op      paint.ImageOp
+	version uint64
 }
 
 type ImageCacheManager struct {
@@ -28,16 +25,15 @@ func (icm *ImageCacheManager) GetImageOp(student *Student) paint.ImageOp {
 	}
 
 	cached, ok := icm.cache[student.Id]
-	if ok && cached.imagePtr == student.ImagePtr && cached.timestamp == student.Timestamp {
+	if ok && cached.version == student.ImageVersion {
 		return cached.op
 	}
 
 	// Create new image op
 	imgOp := paint.NewImageOp(student.Image)
 	icm.cache[student.Id] = ImageCache{
-		op:        imgOp,
-		imagePtr:  student.ImagePtr,
-		timestamp: student.Timestamp,
+		op:      imgOp,
+		version: student.ImageVersion,
 	}
 	return imgOp
 }

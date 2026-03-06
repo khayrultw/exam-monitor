@@ -3,7 +3,6 @@ package main
 import (
 	"image/color"
 	"log"
-	"os"
 	"sync"
 
 	"gioui.org/app"
@@ -49,7 +48,6 @@ func main() {
 		w.Option(app.Size(unit.Dp(400), unit.Dp(600)))
 		if err := run(w); err != nil {
 			log.Fatal(err)
-			os.Exit(0)
 		}
 	}()
 
@@ -67,6 +65,7 @@ func run(w *app.Window) error {
 	}, func() {
 		w.Invalidate()
 	})
+	defer dashboard.client.Stop()
 
 	joinView := NewJoinView(func(sid string, name string, room int, serverIP string) {
 		state.swtichScreen("dashboard")
@@ -101,7 +100,7 @@ func run(w *app.Window) error {
 
 			typ.Frame(gtx.Ops)
 		case app.DestroyEvent:
-			os.Exit(0)
+			return typ.Err
 		}
 	}
 
