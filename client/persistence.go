@@ -10,6 +10,7 @@ type FormData struct {
 	StudentID string `json:"student_id"`
 	Name      string `json:"name"`
 	Room      string `json:"room"`
+	ServerIP  string `json:"server_ip"`
 }
 
 func getDataDir() (string, error) {
@@ -22,7 +23,7 @@ func getDataDir() (string, error) {
 	return dataDir, err
 }
 
-func SaveFormData(studentID, name, room string) error {
+func SaveFormData(studentID, name, room, serverIP string) error {
 	dataDir, err := getDataDir()
 	if err != nil {
 		return err
@@ -32,6 +33,7 @@ func SaveFormData(studentID, name, room string) error {
 		StudentID: studentID,
 		Name:      name,
 		Room:      room,
+		ServerIP:  serverIP,
 	}
 
 	jsonData, err := json.MarshalIndent(data, "", "  ")

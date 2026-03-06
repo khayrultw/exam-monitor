@@ -107,7 +107,7 @@ func (d *DashboardState) layoutSearching(gtx layout.Context, th *material.Theme)
 							return NewBorderWithColor(ErrorColor).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 									return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-										errLabel := material.Body2(th, "Could not connect. Please try again.")
+										errLabel := material.Body2(th, d.errorMsg)
 										errLabel.Color = ErrorColor
 										return errLabel.Layout(gtx)
 									})

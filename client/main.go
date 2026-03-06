@@ -68,9 +68,9 @@ func run(w *app.Window) error {
 		w.Invalidate()
 	})
 
-	joinView := NewJoinView(func(sid string, name string, room int) {
+	joinView := NewJoinView(func(sid string, name string, room int, serverIP string) {
 		state.swtichScreen("dashboard")
-		dashboard.client.Start(sid, name, room, func() {
+		dashboard.client.Start(sid, name, room, serverIP, func() {
 			w.Invalidate()
 		})
 	})
