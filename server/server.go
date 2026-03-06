@@ -8,6 +8,7 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -190,9 +191,13 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 				continue
 			}
 			// Decode frame with dirty rect support
+			log.Printf("[%s] PICTURE received: %d bytes, first byte: 0x%02x", id, len(data), data[0])
 			img := s.decodeFrame(id, data)
 			if img != nil {
+				log.Printf("[%s] Frame decoded: %dx%d, type=%T", id, img.Bounds().Dx(), img.Bounds().Dy(), img)
 				s.studentUtil.UpdateImage(id, img)
+			} else {
+				log.Printf("[%s] Frame decode returned nil!", id)
 			}
 		}
 	}
@@ -256,8 +261,10 @@ func (s *Server) decodeFrame(id string, data []byte) image.Image {
 func (s *Server) decodeKeyFrame(id string, data []byte) image.Image {
 	img, err := jpeg.Decode(bytes.NewReader(data))
 	if err != nil {
+		log.Printf("[%s] keyframe jpeg.Decode failed: %v (data len=%d, first bytes: %x)", id, err, len(data), data[:min(16, len(data))])
 		return nil
 	}
+	log.Printf("[%s] keyframe decoded: %dx%d", id, img.Bounds().Dx(), img.Bounds().Dy())
 
 	dec := s.getOrCreateDecoder(id)
 	dec.mu.Lock()
@@ -326,11 +333,14 @@ func (s *Server) decodeDirtyRects(id string, data []byte) image.Image {
 func (s *Server) decodeLegacyFrame(id string, data []byte) image.Image {
 	img, err := jpeg.Decode(bytes.NewReader(data))
 	if err != nil {
+		log.Printf("[%s] legacy jpeg.Decode failed: %v, trying image.Decode", id, err)
 		img, _, err = image.Decode(bytes.NewReader(data))
 		if err != nil {
+			log.Printf("[%s] legacy image.Decode also failed: %v", id, err)
 			return nil
 		}
 	}
+	log.Printf("[%s] legacy frame decoded: %dx%d", id, img.Bounds().Dx(), img.Bounds().Dy())
 
 	dec := s.getOrCreateDecoder(id)
 	dec.mu.Lock()
@@ -341,7 +351,7 @@ func (s *Server) decodeLegacyFrame(id string, data []byte) image.Image {
 	draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
 	dec.canvas = rgba
 
-	return img
+	return rgba
 }
 
 func unpackHeader(data []byte) (uint16, int, error) {
