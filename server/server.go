@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"image"
-	"image/draw"
-	"image/jpeg"
 	"io"
 	"net"
 	"strings"
@@ -19,24 +17,15 @@ const (
 	HEADER_SIZE          = 8
 	READ_TIMEOUT         = 10 * time.Second
 	REMOVAL_GRACE_PERIOD = 5 * time.Second // Keep student visible for a few seconds after disconnect
-	FrameTypeKey   byte = 0x01
-	FrameTypeDirty byte = 0x02
 )
-
-type StudentDecoder struct {
-	canvas *image.RGBA
-	mu     sync.Mutex
-}
 
 type Server struct {
 	listener    *net.TCPListener
 	isRunning   atomic.Bool
 	studentUtil StudentUtil
+	// Track active connections per student ID to handle reconnection race conditions
 	activeConns   map[string]int64 // studentID -> connection timestamp
 	activeConnsMu sync.Mutex
-
-	decoders   map[string]*StudentDecoder
-	decodersMu sync.Mutex
 }
 
 type StudentUtil interface {
@@ -51,7 +40,6 @@ func NewServer() *Server {
 	server := Server{
 		isRunning:   atomic.Bool{},
 		activeConns: make(map[string]int64),
-		decoders:    make(map[string]*StudentDecoder),
 	}
 	server.isRunning.Store(false)
 	return &server
@@ -100,33 +88,15 @@ func (s *Server) scheduleStudentRemoval(id string, connTimestamp int64) {
 	s.activeConnsMu.Lock()
 	defer s.activeConnsMu.Unlock()
 
+	// Only remove if this connection is still the active one for this student
+	// If a newer connection exists (reconnected during grace period), don't remove
 	if currentTimestamp, exists := s.activeConns[id]; exists {
 		if currentTimestamp == connTimestamp {
 			delete(s.activeConns, id)
 			s.studentUtil.RemoveStudent(id)
-			s.removeDecoder(id)
 		}
+		// A newer connection exists, don't remove the student
 	}
-}
-
-func (s *Server) getOrCreateDecoder(id string) *StudentDecoder {
-	s.decodersMu.Lock()
-	defer s.decodersMu.Unlock()
-
-	if dec, ok := s.decoders[id]; ok {
-		return dec
-	}
-
-	dec := &StudentDecoder{}
-	s.decoders[id] = dec
-	return dec
-}
-
-// removeDecoder removes a student's decoder.
-func (s *Server) removeDecoder(id string) {
-	s.decodersMu.Lock()
-	defer s.decodersMu.Unlock()
-	delete(s.decoders, id)
 }
 
 func (s *Server) handleStudent(socket *net.TCPConn) {
@@ -134,9 +104,7 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 	id := ""
 	var connTimestamp int64 = 0
 	header := make([]byte, HEADER_SIZE)
-
-	// Reusable data buffer with larger initial capacity
-	data := make([]byte, 64*1024)
+	data := make([]byte, 0)
 
 	for s.isRunning.Load() {
 		socket.SetReadDeadline(time.Now().Add(READ_TIMEOUT))
@@ -153,21 +121,20 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 			break
 		}
 
-		if cap(data) < dataSize {
+		if len(data) < dataSize {
 			data = make([]byte, dataSize)
 		}
-		data = data[:dataSize]
 
 		socket.SetReadDeadline(time.Now().Add(READ_TIMEOUT))
-		_, err = io.ReadFull(socket, data)
+		_, err = io.ReadFull(socket, data[:dataSize])
 
 		if err != nil {
 			break
 		}
 
 		switch dataType {
-		case 0: // NAME
-			info := string(data)
+		case 0:
+			info := string(data[:dataSize])
 			parts := strings.SplitN(info, "###", 2)
 			if len(parts) != 2 {
 				break
@@ -182,16 +149,12 @@ func (s *Server) handleStudent(socket *net.TCPConn) {
 			} else {
 				s.studentUtil.UpdateName(id, name)
 			}
-		case 1: // MESSAGE
-			msg := string(data)
+		case 1:
+			msg := string(data[:dataSize])
 			println(msg)
-		default: // PICTURE
-			if id == "" {
-				continue
-			}
-			// Decode frame with dirty rect support
-			img := s.decodeFrame(id, data)
-			if img != nil {
+		default:
+			img, _, err := image.Decode(bytes.NewReader(data[:dataSize]))
+			if err == nil {
 				s.studentUtil.UpdateImage(id, img)
 			}
 		}
@@ -234,114 +197,6 @@ func (s *Server) Stop() {
 	if s.listener != nil {
 		s.listener.Close()
 	}
-}
-
-func (s *Server) decodeFrame(id string, data []byte) image.Image {
-	if len(data) < 1 {
-		return nil
-	}
-
-	frameType := data[0]
-
-	switch frameType {
-	case FrameTypeKey:
-		return s.decodeKeyFrame(id, data[1:])
-	case FrameTypeDirty:
-		return s.decodeDirtyRects(id, data[1:])
-	default:
-		return s.decodeLegacyFrame(id, data)
-	}
-}
-
-func (s *Server) decodeKeyFrame(id string, data []byte) image.Image {
-	img, err := jpeg.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil
-	}
-
-	dec := s.getOrCreateDecoder(id)
-	dec.mu.Lock()
-	defer dec.mu.Unlock()
-
-	bounds := img.Bounds()
-	rgba := image.NewRGBA(bounds)
-	draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
-	dec.canvas = rgba
-
-	return img
-}
-
-func (s *Server) decodeDirtyRects(id string, data []byte) image.Image {
-	if len(data) < 2 {
-		return nil
-	}
-
-	dec := s.getOrCreateDecoder(id)
-	dec.mu.Lock()
-	defer dec.mu.Unlock()
-
-	if dec.canvas == nil {
-		return nil
-	}
-
-	rectCount := int(binary.BigEndian.Uint16(data[:2]))
-	offset := 2
-
-	for i := 0; i < rectCount; i++ {
-		if offset+12 > len(data) {
-			break
-		}
-
-		x := int(binary.BigEndian.Uint16(data[offset:]))
-		y := int(binary.BigEndian.Uint16(data[offset+2:]))
-		w := int(binary.BigEndian.Uint16(data[offset+4:]))
-		h := int(binary.BigEndian.Uint16(data[offset+6:]))
-		dataLen := int(binary.BigEndian.Uint32(data[offset+8:]))
-		offset += 12
-
-		if offset+dataLen > len(data) {
-			break
-		}
-
-		rectImg, err := jpeg.Decode(bytes.NewReader(data[offset : offset+dataLen]))
-		offset += dataLen
-
-		if err != nil {
-			continue
-		}
-
-		destRect := image.Rect(x, y, x+w, y+h)
-		canvasBounds := dec.canvas.Bounds()
-
-		if destRect.Max.X > canvasBounds.Max.X || destRect.Max.Y > canvasBounds.Max.Y {
-			continue
-		}
-
-		draw.Draw(dec.canvas, destRect, rectImg, image.Point{}, draw.Src)
-	}
-
-	return dec.canvas
-}
-
-func (s *Server) decodeLegacyFrame(id string, data []byte) image.Image {
-	img, err := jpeg.Decode(bytes.NewReader(data))
-	if err != nil {
-		img, _, err = image.Decode(bytes.NewReader(data))
-		if err != nil {
-			return nil
-		}
-	}
-
-	dec := s.getOrCreateDecoder(id)
-	dec.mu.Lock()
-	defer dec.mu.Unlock()
-
-	bounds := img.Bounds()
-	rgba := image.NewRGBA(bounds)
-	draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
-	dec.canvas = rgba
-
-	return img
 }
 
 func unpackHeader(data []byte) (uint16, int, error) {
